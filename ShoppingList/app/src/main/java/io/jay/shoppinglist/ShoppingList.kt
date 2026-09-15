@@ -1,5 +1,11 @@
 package io.jay.shoppinglist
 
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
+import android.content.Context
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +26,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -36,22 +43,66 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.navigation.NavController
 import java.util.UUID
 
 data class ShoppingItem(
     val id: UUID,
     var name: String,
     var quantity: Int,
-    var isEditing: Boolean = false
+    var isEditing: Boolean = false,
+    var address: String = ""
 )
 
 @Composable
-fun ShoppingList() {
+fun ShoppingList(
+    locationUtils: LocationUtils,
+    viewModel: LocationViewModel,
+    navController: NavController,
+    context: Context,
+    address: String
+) {
 
     var shoppingItems by remember { mutableStateOf(listOf<ShoppingItem>()) }
     var showDialog by remember { mutableStateOf(false) }
     var itemName by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
+
+    fun startLocationUpdate() {
+        locationUtils.requestLocationUpdates(onLocation = {
+            viewModel.updateLocation(it)
+        })
+    }
+
+    val requestPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+        onResult = { permissions ->
+            val coarsePermission = permissions.getOrDefault(ACCESS_COARSE_LOCATION, false)
+            val finePermission = permissions.getOrDefault(ACCESS_FINE_LOCATION, false)
+
+            if (coarsePermission && finePermission) {
+                // has access to location
+                startLocationUpdate()
+            } else {
+                val rationaleRequired = ActivityCompat.shouldShowRequestPermissionRationale(
+                    context as MainActivity,
+                    ACCESS_FINE_LOCATION
+                ) || ActivityCompat.shouldShowRequestPermissionRationale(
+                    context,
+                    ACCESS_COARSE_LOCATION
+                )
+
+                if (rationaleRequired) {
+                    Toast.makeText(context, "Location permission is required", Toast.LENGTH_LONG)
+                        .show()
+                } else {
+                    Toast.makeText(context, "Location permission is required. Please enable it in the settings", Toast.LENGTH_LONG)
+                        .show()
+                }
+            }
+        }
+    )
 
     Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), verticalArrangement = Arrangement.Center) {
         Button(
@@ -67,7 +118,7 @@ fun ShoppingList() {
                 if (item.isEditing) {
                     ShoppingItemEditor(item = item, onEditComplete = { name, qty ->
                         shoppingItems = shoppingItems.map {
-                            if (it.id == item.id) it.copy(name = name, quantity = qty, isEditing = false)
+                            if (it.id == item.id) it.copy(name = name, quantity = qty, isEditing = false, address = address)
                             else it
                         }
                     })
@@ -107,6 +158,19 @@ fun ShoppingList() {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().padding(8.dp)
                     )
+
+                    Button(onClick = {
+                        if (locationUtils.hasLocationPermission(context)) {
+                            startLocationUpdate()
+                            navController.navigate("locationscreen") {
+                                this.launchSingleTop
+                            }
+                        } else {
+                            requestPermissionLauncher.launch(arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION))
+                        }
+                    }) {
+                        Text("address")
+                    }
                 }
             },
             confirmButton = {
@@ -125,7 +189,7 @@ fun ShoppingList() {
                             return@TextButton
                         }
 
-                        val newItem = ShoppingItem(id = UUID.randomUUID(), name = itemName, quantity = itemQuantity)
+                        val newItem = ShoppingItem(id = UUID.randomUUID(), name = itemName, quantity = itemQuantity, address = address)
                         shoppingItems = shoppingItems + newItem
 
                         itemName = ""
@@ -149,8 +213,18 @@ fun ShoppingListItem(
             .border(border = BorderStroke(2.dp, Color(0xFF013787)), shape = RoundedCornerShape(20)),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(item.name, modifier = Modifier.padding(8.dp))
-        Text("qty: ${item.quantity}", modifier = Modifier.padding(8.dp))
+        Column(modifier = Modifier.weight(1f).padding(8.dp)) {
+            Row {
+                Text(item.name, modifier = Modifier.padding(8.dp))
+                Text("qty: ${item.quantity}", modifier = Modifier.padding(8.dp))
+            }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Icon(imageVector = Icons.Default.LocationOn, "Location")
+                Text(item.address)
+            }
+        }
+
+
         Row(modifier = Modifier.padding(8.dp)) {
             IconButton(onClick = onEditClick) {
                 Icon(Icons.Default.Edit, "Edit")
