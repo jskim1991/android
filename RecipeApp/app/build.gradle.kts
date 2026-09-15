@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
@@ -36,10 +37,13 @@ android {
 }
 
 dependencies {
-    implementation(libs.androidx.lifecycle.viewmodel.compose) // compose viewmodel
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose) // compose viewmodel
     implementation(libs.coil.compose) // image loading
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
+    implementation(libs.kotlin.parcelize.runtime)
+    kotlinCompilerPluginClasspath("org.jetbrains.kotlin:kotlin-parcelize-compiler:2.2.10")
 
 
     implementation(platform(libs.androidx.compose.bom))
