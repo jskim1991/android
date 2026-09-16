@@ -14,6 +14,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,13 +26,26 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import io.jay.wishlistapp.data.Wish
 
 @Composable
 fun AddEditDetailView(
     id: Long,
     viewModel: WishViewModel,
-    navController: NavController
+    navController: NavController,
+    onShowSnackbar: (String) -> Unit
 ) {
+
+    val snackMessage = remember { mutableStateOf("") }
+
+    if (id != 0L) {
+        val wish = viewModel.getWishById(id).collectAsState(initial = Wish(id, "", ""))
+        viewModel.titleState = wish.value.title
+        viewModel.descriptionState = wish.value.description
+    } else {
+        viewModel.resetInputs()
+    }
+
     Scaffold(
         topBar = {
             AppBarView(
@@ -54,10 +70,26 @@ fun AddEditDetailView(
             Spacer(modifier = Modifier.height(10.dp))
             Button(onClick = {
                 if (viewModel.titleState.isNotEmpty() && viewModel.descriptionState.isNotEmpty()) {
-                    // update
+                    if (id != 0L) {
+                        // update wish
+                        viewModel.updateWish(Wish(id = id, title = viewModel.titleState.trim(), description = viewModel.descriptionState.trim()))
+                        snackMessage.value = "Wish has been updated"
+                    } else {
+                        // add wish
+                        viewModel.addWish(Wish(title = viewModel.titleState.trim(), description = viewModel.descriptionState.trim()))
+                        snackMessage.value = "Wish has been created"
+                    }
+
+                    navController.navigateUp()
+                    viewModel.resetInputs()
+                    onShowSnackbar(snackMessage.value)
+
                 } else {
-                    // add ?
+                    snackMessage.value = "Enter fields to create a wish"
+                    onShowSnackbar(snackMessage.value)
                 }
+
+
             }) {
                 Text("Save")
             }
